@@ -24,10 +24,9 @@ import time
 
 from abc import ABC, abstractmethod
 from errno import ENOENT, ENOTDIR, EBADF
-from functools import wraps
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 from stat import S_IFDIR, S_IFREG
-from typing import Any, Callable, Dict, Iterator, Iterable, List, Union, cast
+from typing import Dict, Iterator, Iterable, List, Union, cast
 
 from fuse import FUSE, FuseOSError, LoggingMixIn, Operations  # type: ignore
 
@@ -139,7 +138,6 @@ class TableDirectory(Directory):
     pk_2
     ...
     pk_n
-
     """
     def __init__(self, table_name: str) -> None:
         self.table_name = table_name
@@ -156,10 +154,15 @@ class TableDirectory(Directory):
         PK = 5
 
         pks = list(row[NAME] for row in rows if row[PK])
-        # TODO: handle `WITHOUT ROWID` tables
+        # XXX: handle `WITHOUT ROWID` tables
+        #      https://sqlite.org/withoutrowid.html
+        # XXX: SQLite3 allows for NULL primary keys!
+        #      https://sqlite.org/lang_createtable.html#constraints
         if len(pks) == 1:
             return pks[0]
         else:
+            # XXX: rowid can be a valid name for a column other than the
+            # actual rowid.
             return 'rowid'
 
     def ls(self):
@@ -276,7 +279,6 @@ class BlobFS(LoggingMixIn, Operations):
         Gets an entry or raises ENOENT.
         """
         path = PurePosixPath(path_str)
-        # TODO: assert things about the paths
 
         if len(path.parts) == 4:
             # Synthesize a file!
@@ -296,7 +298,7 @@ class BlobFS(LoggingMixIn, Operations):
 
         raise FuseOSError(ENOENT)
 
-    def getattr(self, path: str, fh=None) -> Dict[str, Any]:
+    def getattr(self, path: str, fh=None) -> Stat:
         "implement stat(2)"
         return self._get_entry(path).stat()
 
